@@ -1,1 +1,1 @@
-# Untitled
+Playground for exploring lean with friends
