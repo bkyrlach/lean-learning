@@ -3,19 +3,35 @@ inductive BenNat where
   | Z : BenNat
   deriving Repr
 
-def add (a b : BenNat) : BenNat :=
-  match a with
-  | BenNat.S c => add c (BenNat.S b)
-  | BenNat.Z => b
 
+/- forall (P: BenNat -> Prop) n,
+ (BaseCase: P Z) ->
+ ((IH: forall n', P n') -> P (S n')) ->
+ P n
+ -/
 open BenNat
 
-#eval add (S Z) Z
+def two: BenNat := S (S Z)
 
-theorem add_zero_left : forall a, add Z a = a := by
+def add (a b : BenNat) : BenNat :=
+  match a with
+  | BenNat.S aguts =>
+     S (add aguts b)
+  | BenNat.Z => b
+
+
+theorem add_zero_left : forall a:BenNat, add Z a = a := by
   intro a
   unfold add
   eq_refl
+
+theorem add_zero_right : forall a, add a Z = a := by
+  intro a
+  induction a with
+  | Z => unfold add; eq_refl
+  | S aguts IH =>
+    unfold add
+    rw [IH]
 
 theorem add_one_left : forall a, (S a) = add (S Z) a := by
   intro a
