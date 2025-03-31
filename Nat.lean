@@ -5,7 +5,8 @@ inductive BenNat where
 
 open BenNat
 
-theorem foo : forall (P : BenNat -> Prop) n, P Z -> (forall n', P n' -> P (S n')) -> P n := by
+theorem foo : forall (P : BenNat -> Prop) n, P Z ->
+  (forall n', P n' -> P (S n')) -> P n := by
   intro P
   intro n
   intro Hzero
@@ -74,11 +75,11 @@ theorem add_zero_right_other : forall a, add a Z = a := by
     rw [add_one_succ, iHA]
 
 
-def indRec n : forall (P : BenNat -> Prop), P Z ->
+def indRec (n: BenNat) : forall (P : BenNat -> Prop), P Z ->
  (forall n', P n' -> P (S n')) -> P n :=
   match n with
   | Z => fun _ BC _ => BC
-  | S n' =>
+  | S nguts =>
     fun P BC IH =>
-      let bleh := (indRec n' P BC IH)
-      (IH n' bleh)
+      let bleh := (indRec nguts P BC IH)
+      (IH nguts bleh)
