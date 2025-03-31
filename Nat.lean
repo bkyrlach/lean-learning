@@ -56,7 +56,7 @@ theorem add_one_succ : forall a b, add (S a) b = S (add a b) := by
       lhs
       unfold add
 
-theorem add_zero_right : forall a, add a Z = a := by
+theorem add_zero_right_other : forall a, add a Z = a := by
   intro a
   induction a with
   | Z =>
@@ -64,4 +64,12 @@ theorem add_zero_right : forall a, add a Z = a := by
   | S x iHA =>
     rw [add_one_succ, iHA]
 
-theorem add_assoc
+
+def indRec n : forall (P : BenNat -> Prop), P Z ->
+ (forall n', P n' -> P (S n')) -> P n :=
+  match n with
+  | Z => fun P BC _ => BC
+  | S n' =>
+    fun P BC IH =>
+      let bleh := (indRec n' P BC IH)
+      (IH n' bleh)
