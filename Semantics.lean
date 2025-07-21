@@ -82,7 +82,7 @@ inductive step : exp -> exp -> Prop where
     step (Plus e1 e2) (Plus resultExp e2)
 open step
 
-/- infix:50 " ==> " => step
+infix:50 " ==> " => step
 
 example : step (Plus (C 0) (C 1)) (C 1) := by
   apply stepPlusConst
@@ -101,16 +101,6 @@ example : (Plus (C 1) (Plus (C 2) (C 3))) ==>
 example : ¬ (Plus (Plus (C 1) (C 2)) (Plus (C 2) (C 3))) ==>
   (Plus (Plus (C 1) (C 2)) (C 5))
  := by sorry
- -/
-
--- Lets formalize some stuff about relations.
-
--- even
-   --- exists n = 2 * m
-
--- even 6
---  - sub2 : even 4
---  - sub4 : even 2
 
 
 def relation (X : Type) := X -> X -> Prop
@@ -166,47 +156,3 @@ theorem step_deterministic : deterministic step := by
       simp
       apply ih
       simp [*]
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-def deterministic {X : Type} (R : relation X) :=
-  forall x y1 y2 : X, R x y1 -> R x y2 -> y1 = y2
-
-theorem step_deterministic : deterministic step := by
-  unfold deterministic
-  intros x y1 y2 H1 H2
-  revert y2
-  induction H1 <;> intros
-  have H2: C
