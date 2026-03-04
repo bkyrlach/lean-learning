@@ -5,6 +5,37 @@ defaultTargets = ["untitled"]
 [[lean_lib]]
 name = "Untitled"
 
+[[lean_lib]]
+name = "SFC"
+
+[[lean_lib]]
+name = "TrafficLightEquiv"
+
+[[lean_lib]]
+name = "ElevatorEquiv"
+
+[[lean_lib]]
+name = "ImperativeOperationalSemantics"
+
+[[lean_lib]]
+name = "Simulations"
+
+[[lean_lib]]
+name = "SimulationInstances"
+
+[[lean_lib]]
+name = "EntitlementsEquiv"
+
+[[lean_lib]]
+name = "EventSFC"
+
+[[lean_lib]]
+name = "quine"
+
 [[lean_exe]]
 name = "untitled"
 root = "Main"
+
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"

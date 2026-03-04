@@ -75,6 +75,14 @@ theorem add_zero_right_other : forall a, add a Z = a := by
     rw [add_one_succ, iHA]
 
 
+inductive BenNat where
+  | S : BenNat -> BenNat
+  | Z : BenNat
+  deriving Repr
+
+open BenNat
+
+
 def indRec (n: BenNat) : forall (P : BenNat -> Prop), P Z ->
  (forall n', P n' -> P (S n')) -> P n :=
   match n with

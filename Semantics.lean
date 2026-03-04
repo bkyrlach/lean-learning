@@ -3,17 +3,19 @@ inductive exp where
  | Plus : exp -> exp -> exp
 open exp
 
+-- This is a denotational semantics
 def eval (e1 : exp) : Nat :=
   match e1 with
   | C n => n
   | Plus l r =>
-  let lCall := eval l
-  let rCall := eval r
-  lCall + rCall
-
+    let lCall := eval l
+    let rCall := eval r
+    lCall + rCall
 
 #check Nat
 #check Type 1
+#check Type 2
+#check Type 3
 #check Prop
 
 theorem excluded_middle : forall P : Prop, P ∨ ¬ P := sorry
@@ -22,22 +24,59 @@ theorem excluded_middle_bool : forall P : Bool, P = true ∨ P = false := by
   intros P
   cases P <;> simp
 
+inductive isEven : Nat -> Prop where
+  | EvenIntro (n : Nat) :
+      (exists k, n = 2 * k) ->
+    isEven n
 
+open isEven
+
+theorem Even_0 : isEven 0 := by
+  apply (EvenIntro 0)
+  exists 0
 
 inductive evalInd : exp -> Nat -> Prop where
 | E_C : forall (n: Nat), evalInd (C n) n
-| E_Plus : forall l r l_n r_n,
+| E_Plus : forall (l r : exp) (l_n r_n : Nat),
   evalInd l l_n -> evalInd r r_n ->
     evalInd (Plus l r) (l_n + r_n)
 
 open evalInd
 
+def blehWow (n : Nat): Type :=
+  match n with
+  | 0 => Nat
+  | Nat.succ n' => Bool
 
-example : forall (n : Nat), evalInd (C n) (0 + n) := by
+theorem proof : blehWow 0 = Nat := by
+  unfold blehWow
+  apply Eq.refl
+#print proof
+
+
+
+theorem bleh : forall (n : Nat), evalInd (C n) (0 + n) := by
   intros n
   have H: 0 + n = n := by simp
   rw [H]
   apply E_C
+
+#print bleh
+
+example : evalInd (Plus (C 1) (C 3)) 4 := by
+  have H: 4 = 1 + 3 := by simp
+  have H2: 1 = 0 + 1 := by simp
+  rw [H2] at H
+  rw [H]
+  apply E_Plus
+  rw [<-H2]
+
+  apply E_C
+  apply E_C
+
+
+--  apply (@E_Plus (C 1) (C 3) 1 3)
+
 
 
 

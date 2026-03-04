@@ -4,9 +4,9 @@ inductive BenNat where
   deriving Repr
 
 
-inductive BenList (A: Type u) where
-  | Cons : A -> BenList A -> BenList A
-  | Nil : BenList A
+inductive BenList : Type -> Type where
+  | Cons : forall B, B -> BenList B -> BenList B
+  | Nil : forall A,  BenList A
 
 
 infixr:67 " :: " => BenList.Cons
@@ -28,17 +28,10 @@ macro
  -/
 def exList: BenList BenNat := Cons (BenNat.S BenNat.Z) Nil -- 1::Nil
 
-
-inductive Permutation : Nat -> Type u where
-  | NilP : forall n, Permutation n
-  | ConsP : forall n, Permutation n
-
-
 def append {A: Type} (l1 l2: BenList A): BenList A :=
   match l1 with
   | BenList.Nil => l2
   | BenList.Cons a lguts => Cons a (append lguts l2)
-
 
 def length {A : Type} (l1 : BenList A): Nat :=
   match l1 with
@@ -52,13 +45,27 @@ instance {α} : Append (BenList α) where
 notation "|" xs "|" => length xs
 
 -- To make proving theorems with this syntax ok.
+--- append Nil as ----> as
 @[simp] theorem nil_append (as : BenList α) : Nil ++ as = as := rfl
 @[simp] theorem cons_append (a : α) (as bs : BenList α) : (a::as) ++ bs = a::(as ++ bs) := rfl
 
+
+/- @[simp] theorem recover_def (l1 l2: BenList A) :
+  l1 ++ l2 = append l1 l2 := by
+  rfl
+ -/
+
 theorem length_append A : forall (l1 l2: BenList A),
-  length (l1 ++ l2) = length l1 + length l2 := by
+  length (l1 ++ l2) = (length l1 + length l2) := by
   intros l1 l2
   induction l1 with
-  | Nil => simp!
-  | Cons h t ih =>
-    simp! [*, Nat.add_assoc]
+  | Nil =>
+    rw [nil_append]
+    rw [Nat.self_eq_add_left]
+    unfold length
+    rfl
+  | Cons x xs ih =>
+    simp!
+    rw [Nat.add_assoc, ih]
+
+#print length_append

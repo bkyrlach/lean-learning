@@ -1,1 +1,4 @@
 /.lake
+.claude/
+.vscode/
+design-docs/
