@@ -1,36 +1,23 @@
-name = "Untitled"
+name = "lean-learning"
 version = "0.1.0"
-defaultTargets = ["untitled"]
 
 [[lean_lib]]
 name = "Untitled"
+
+[[lean_lib]]
+name = "Foundations"
 
 [[lean_lib]]
 name = "SFC"
 
 [[lean_lib]]
-name = "TrafficLightEquiv"
+name = "PL"
 
 [[lean_lib]]
-name = "ElevatorEquiv"
+name = "Algebra"
 
 [[lean_lib]]
-name = "ImperativeOperationalSemantics"
-
-[[lean_lib]]
-name = "Simulations"
-
-[[lean_lib]]
-name = "SimulationInstances"
-
-[[lean_lib]]
-name = "EntitlementsEquiv"
-
-[[lean_lib]]
-name = "EventSFC"
-
-[[lean_lib]]
-name = "quine"
+name = "Misc"
 
 [[lean_exe]]
 name = "untitled"

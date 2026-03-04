@@ -16,9 +16,9 @@
   (both systems are cyclic), making those diagrams vacuously true. The step
   diagram is the substance — it reuses the existing forward/backward proofs.
 -/
-import Simulations
-import TrafficLightEquiv
-import ElevatorEquiv
+import SFC.Simulations
+import SFC.TrafficLightEquiv
+import SFC.ElevatorEquiv
 
 open TLState ElevState
 

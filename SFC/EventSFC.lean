@@ -9,7 +9,7 @@
   then proves the semantics equivalent to the original SFC when events are
   folded back into guards.
 -/
-import SFC
+import SFC.Core
 
 -- ============================================================================
 -- EventTransition: transition with dedicated event field

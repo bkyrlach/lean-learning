@@ -6,7 +6,7 @@
   2. Alternative SFC: S1 → S2 (priority) or S1 → S3 (fallback)
   3. Loop SFC: S1 → S1 (loop) or S1 → S2 (exit)
 -/
-import SFC
+import SFC.Core
 
 -- ============================================================================
 -- 1. Sequential SFC: S1 --[x > 0]--> S2 --[true]--> S3

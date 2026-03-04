@@ -134,7 +134,7 @@
   needed.
   ═══════════════════════════════════════════════════════════════════════════
 -/
-import SFC
+import SFC.Core
 
 -- ============================================================================
 -- Inductive Small-Step Semantics for Entitlements Protocol

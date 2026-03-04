@@ -26,7 +26,7 @@
   │   All transitions have priority 0 (no OR-branch)│
   └─────────────────────────────────────────────────┘
 -/
-import SFC
+import SFC.Core
 
 -- ============================================================================
 -- Inductive Small-Step Semantics for Traffic Light

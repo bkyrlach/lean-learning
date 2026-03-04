@@ -34,7 +34,7 @@
   │   when request ≥ 1, otherwise fallback self-loop fires  │
   └──────────────────────────────────────────────────────────┘
 -/
-import SFC
+import SFC.Core
 
 -- ============================================================================
 -- Inductive Small-Step Semantics for Elevator
