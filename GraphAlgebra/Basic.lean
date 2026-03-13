@@ -42,9 +42,35 @@ def PropMap.get (m : PropMap) (k : AttrName) : Option Value := m k
 def PropMap.remove (m : PropMap) (k : AttrName) : PropMap :=
   fun k' => if k' == k then none else m k'
 
+/-- The finite support of a property map: the set of attribute names with non-none values.
+    This requires the user to specify it explicitly since PropMap is a function type. -/
+structure SupportedPropMap where
+  map : PropMap
+  support : Finset AttrName
+  support_spec : ∀ k, k ∉ support → map k = none
+
 /-- Restrict a property map to a set of attribute names. -/
 def PropMap.restrict (m : PropMap) (attrs : Finset AttrName) : PropMap :=
   fun k => if k ∈ attrs then m k else none
+
+/-- Restricting a supported prop map to its support is the identity. -/
+theorem PropMap.restrict_support (sm : SupportedPropMap) :
+    sm.map.restrict sm.support = sm.map := by
+  funext k
+  simp only [PropMap.restrict]
+  split
+  · rfl
+  · exact (sm.support_spec k ‹_›).symm ▸ rfl
+
+/-- Restricting to a superset of the support is also the identity. -/
+theorem PropMap.restrict_superset (sm : SupportedPropMap) (attrs : Finset AttrName)
+    (h : sm.support ⊆ attrs) :
+    sm.map.restrict attrs = sm.map := by
+  funext k
+  simp only [PropMap.restrict]
+  split
+  · rfl
+  · exact (sm.support_spec k (fun hk => ‹k ∉ attrs› (h hk))).symm ▸ rfl
 
 /-- Merge two property maps. Left-wins on conflicts. -/
 def PropMap.merge (m₁ m₂ : PropMap) : PropMap :=

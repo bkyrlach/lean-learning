@@ -347,6 +347,39 @@ inductive PredReachable (G : Graph V L) (p : Edge V L → Prop) : V → V → Pr
   | single : ∀ e, e ∈ G.edges → p e → PredReachable G p e.src e.tgt
   | trans  : PredReachable G p u v → PredReachable G p v w → PredReachable G p u w
 
+/-! ### Path Projection (ρ_path)
+
+Projects paths from a graph: given a label sequence (regular path query),
+returns the set of (source, target) pairs connected by matching paths.
+
+The output is a graph containing the endpoints and the edges along matching paths.
+This is the ρ_path operator from the property table. -/
+
+/-- A regular path query (RPQ) over edge labels. -/
+inductive RPQ (L : Type) where
+  | label : L → RPQ L                   -- single edge label
+  | seq   : RPQ L → RPQ L → RPQ L       -- concatenation
+  | alt   : RPQ L → RPQ L → RPQ L       -- alternation
+  | star  : RPQ L → RPQ L               -- Kleene star
+  deriving Inhabited
+
+/-- Path matching: does a path from u to v in G match the RPQ? -/
+inductive RPQMatch (G : Graph V L) : RPQ L → V → V → Prop where
+  | label : ∀ l e, e ∈ G.edges → e.label = l → RPQMatch G (.label l) e.src e.tgt
+  | seq   : RPQMatch G q₁ u v → RPQMatch G q₂ v w → RPQMatch G (.seq q₁ q₂) u w
+  | alt_l : RPQMatch G q₁ u v → RPQMatch G (.alt q₁ q₂) u v
+  | alt_r : RPQMatch G q₂ u v → RPQMatch G (.alt q₁ q₂) u v
+  | star_refl : v ∈ G.nodes → RPQMatch G (.star q) v v
+  | star_step : RPQMatch G q u v → RPQMatch G (.star q) v w → RPQMatch G (.star q) u w
+
+/-- Path projection result: nodes that are endpoints of matching paths. -/
+def pathProjectNodes (G : Graph V L) (q : RPQ L) : Set V :=
+  {v | ∃ u, RPQMatch G q u v ∨ RPQMatch G q v u}
+
+/-- Path projection result: the set of (source, target) pairs connected by matching paths. -/
+def pathProjectPairs (G : Graph V L) (q : RPQ L) : Set (V × V) :=
+  {p | RPQMatch G q p.1 p.2}
+
 /-! ### Pattern Matching (⋈_P)
 
 Given a data graph G and a pattern graph P, find all occurrences of P in G.
@@ -359,6 +392,26 @@ This preserves closure — the result feeds directly into further graph operatio
 def homomorphisms (P G : Graph V L) : Set (V → V) :=
   {f | (∀ v ∈ P.nodes, f v ∈ G.nodes) ∧
        (∀ e ∈ P.edges, ⟨f e.src, e.label, f e.tgt⟩ ∈ G.edges)}
+
+/-- The set of all injective homomorphisms (embeddings) from P to G.
+    This is the ⋈_P (iso) operator from the property table. -/
+def embeddings (P G : Graph V L) : Set (V → V) :=
+  {f | f ∈ homomorphisms P G ∧
+       (∀ u ∈ P.nodes, ∀ v ∈ P.nodes, f u = f v → u = v)}
+
+/-- Embeddings are a subset of homomorphisms. -/
+theorem embeddings_sub_homomorphisms (P G : Graph V L) :
+    embeddings P G ⊆ homomorphisms P G :=
+  fun _ hf => hf.1
+
+/-- Pattern matching result (injective): nodes matched by some embedding. -/
+def isoMatchNodes (G P : Graph V L) : Set V :=
+  {v | ∃ f ∈ embeddings P G, ∃ u ∈ P.nodes, f u = v}
+
+/-- Pattern matching result (injective): edges matched by some embedding. -/
+def isoMatchEdges (G P : Graph V L) : Set (Edge V L) :=
+  {e | ∃ f ∈ embeddings P G, ∃ e' ∈ P.edges,
+    e = ⟨f e'.src, e'.label, f e'.tgt⟩}
 
 /-- Non-induced match image: contains only pattern-specified edges mapped through f.
     This is the standard homomorphism image — one "occurrence" of the pattern. -/

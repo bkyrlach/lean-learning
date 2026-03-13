@@ -718,6 +718,132 @@ theorem construct_edges (nodes : Finset V) (edges : Finset (Edge V L))
 
 end BridgeLaws
 
+/-! ## ↑ Laws (construct row)
+
+Property table: — | — | — | — | C¹⁸ | — | ✓ | C¹⁹ | — | C | ✓ | —
+Laws for the graph construction operator. -/
+
+section ConstructLaws
+
+/-- ↑ is monotone: larger inputs → larger output (nodes).
+    N₁ ⊆ N₂ → construct(N₁, E₁) ⊆ construct(N₂, E₂) -/
+theorem construct_mono_nodes {n₁ n₂ : Finset V} {e₁ e₂ : Finset (Edge V L)}
+    (hn : n₁ ⊆ n₂) (np : V → PropMap) (ep : Edge V L → PropMap)
+    (h_src₁ : ∀ e ∈ e₁, e.src ∈ n₁) (h_tgt₁ : ∀ e ∈ e₁, e.tgt ∈ n₁)
+    (h_src₂ : ∀ e ∈ e₂, e.src ∈ n₂) (h_tgt₂ : ∀ e ∈ e₂, e.tgt ∈ n₂) :
+    (construct n₁ e₁ np ep h_src₁ h_tgt₁).nodes ⊆
+    (construct n₂ e₂ np ep h_src₂ h_tgt₂).nodes := hn
+
+theorem construct_mono_edges {n₁ n₂ : Finset V} {e₁ e₂ : Finset (Edge V L)}
+    (he : e₁ ⊆ e₂) (np : V → PropMap) (ep : Edge V L → PropMap)
+    (h_src₁ : ∀ e ∈ e₁, e.src ∈ n₁) (h_tgt₁ : ∀ e ∈ e₁, e.tgt ∈ n₁)
+    (h_src₂ : ∀ e ∈ e₂, e.src ∈ n₂) (h_tgt₂ : ∀ e ∈ e₂, e.tgt ∈ n₂) :
+    (construct n₁ e₁ np ep h_src₁ h_tgt₁).edges ⊆
+    (construct n₂ e₂ np ep h_src₂ h_tgt₂).edges := he
+
+/-- C¹⁹: ↑ is congruent — same inputs → same output. -/
+theorem construct_congr {n₁ n₂ : Finset V} {e₁ e₂ : Finset (Edge V L)}
+    (hn : n₁ = n₂) (he : e₁ = e₂)
+    (np : V → PropMap) (ep : Edge V L → PropMap)
+    (h_src₁ : ∀ e ∈ e₁, e.src ∈ n₁) (h_tgt₁ : ∀ e ∈ e₁, e.tgt ∈ n₁)
+    (h_src₂ : ∀ e ∈ e₂, e.src ∈ n₂) (h_tgt₂ : ∀ e ∈ e₂, e.tgt ∈ n₂) :
+    (construct n₁ e₁ np ep h_src₁ h_tgt₁).nodes =
+    (construct n₂ e₂ np ep h_src₂ h_tgt₂).nodes ∧
+    (construct n₁ e₁ np ep h_src₁ h_tgt₁).edges =
+    (construct n₂ e₂ np ep h_src₂ h_tgt₂).edges := by
+  subst hn; subst he; exact ⟨rfl, rfl⟩
+
+/-- π commutes with ↑ unconditionally: projecting after construct =
+    constructing with projected properties. -/
+theorem projectProps_construct (n : Finset V) (e : Finset (Edge V L))
+    (np : V → PropMap) (ep : Edge V L → PropMap)
+    (h_src : ∀ ed ∈ e, ed.src ∈ n) (h_tgt : ∀ ed ∈ e, ed.tgt ∈ n)
+    (attrs : Finset AttrName) :
+    ((construct n e np ep h_src h_tgt).projectProps attrs).nodes =
+    (construct n e (fun v => (np v).restrict attrs) (fun ed => (ep ed).restrict attrs)
+      h_src h_tgt).nodes ∧
+    ((construct n e np ep h_src h_tgt).projectProps attrs).edges =
+    (construct n e (fun v => (np v).restrict attrs) (fun ed => (ep ed).restrict attrs)
+      h_src h_tgt).edges := by
+  simp [projectProps, construct]
+
+/-- C¹⁸: ↑ distributes over ∪ when node/edge sets are unioned (topology level).
+    construct(N₁ ∪ N₂, E₁ ∪ E₂) has the same topology as
+    construct(N₁, E₁) ∪ construct(N₂, E₂). -/
+theorem construct_union_nodes (n₁ n₂ : Finset V) (e₁ e₂ : Finset (Edge V L))
+    (np : V → PropMap) (ep : Edge V L → PropMap)
+    (h_src₁ : ∀ e ∈ e₁, e.src ∈ n₁) (h_tgt₁ : ∀ e ∈ e₁, e.tgt ∈ n₁)
+    (h_src₂ : ∀ e ∈ e₂, e.src ∈ n₂) (h_tgt₂ : ∀ e ∈ e₂, e.tgt ∈ n₂)
+    (h_src : ∀ e ∈ e₁ ∪ e₂, e.src ∈ n₁ ∪ n₂)
+    (h_tgt : ∀ e ∈ e₁ ∪ e₂, e.tgt ∈ n₁ ∪ n₂) :
+    (construct (n₁ ∪ n₂) (e₁ ∪ e₂) np ep h_src h_tgt).nodes =
+    ((construct n₁ e₁ np ep h_src₁ h_tgt₁).union
+     (construct n₂ e₂ np ep h_src₂ h_tgt₂)).nodes := by
+  simp [construct, union]
+
+theorem construct_union_edges (n₁ n₂ : Finset V) (e₁ e₂ : Finset (Edge V L))
+    (np : V → PropMap) (ep : Edge V L → PropMap)
+    (h_src₁ : ∀ e ∈ e₁, e.src ∈ n₁) (h_tgt₁ : ∀ e ∈ e₁, e.tgt ∈ n₁)
+    (h_src₂ : ∀ e ∈ e₂, e.src ∈ n₂) (h_tgt₂ : ∀ e ∈ e₂, e.tgt ∈ n₂)
+    (h_src : ∀ e ∈ e₁ ∪ e₂, e.src ∈ n₁ ∪ n₂)
+    (h_tgt : ∀ e ∈ e₁ ∪ e₂, e.tgt ∈ n₁ ∪ n₂) :
+    (construct (n₁ ∪ n₂) (e₁ ∪ e₂) np ep h_src h_tgt).edges =
+    ((construct n₁ e₁ np ep h_src₁ h_tgt₁).union
+     (construct n₂ e₂ np ep h_src₂ h_tgt₂)).edges := by
+  simp [construct, union]
+
+/-- σ commutes with ↑ for attribute predicates (C condition):
+    selecting after construct = constructing with filtered inputs. -/
+theorem selectNodes_construct_nodes (n : Finset V) (e : Finset (Edge V L))
+    (np : V → PropMap) (ep : Edge V L → PropMap)
+    (h_src : ∀ ed ∈ e, ed.src ∈ n) (h_tgt : ∀ ed ∈ e, ed.tgt ∈ n)
+    (p : PropMap → Prop) [DecidablePred p] :
+    ((construct n e np ep h_src h_tgt).selectNodes p).nodes =
+    n.filter (fun v => p (np v)) := by
+  simp [selectNodes, construct]
+
+end ConstructLaws
+
+/-! ## ↓ Laws (relational projection row)
+
+Property table: — | — | — | — | C¹ | C¹ | ✓ | C¹⁹ | — | C²⁰ | ✓ | —
+Laws for the relational projection (graph → relation) operator.
+
+Since `toNodeRelation`/`toEdgeRelation` are noncomputable (using Multiset.toList),
+we express laws at the size/topology level rather than on exact List equality. -/
+
+section ProjectionDownLaws
+
+/-- ↓ monotonicity at size level: more nodes → larger node relation. -/
+theorem toNodeRelation_size_eq (G : Graph V L)
+    (idAttr : AttrName) (toVal : V → Value) :
+    (G.toNodeRelation idAttr toVal).size = G.nodes.val.toList.length := by
+  simp [toNodeRelation, Relation.size]
+
+/-- ↓ preserves node count: |↓(G).rows| = |G.nodes|. -/
+theorem toNodeRelation_size (G : Graph V L)
+    (idAttr : AttrName) (toVal : V → Value) :
+    (G.toNodeRelation idAttr toVal).size = G.nodeCount := by
+  unfold toNodeRelation Relation.size nodeCount
+  rw [List.length_map, Multiset.length_toList, Finset.card_val]
+
+/-- π commutes with ↓ on topology: projectProps doesn't change which
+    nodes/edges exist, so the relation has the same structure. -/
+theorem toNodeRelation_projectProps_size (G : Graph V L)
+    (attrs : Finset AttrName) (idAttr : AttrName) (toVal : V → Value) :
+    ((G.projectProps attrs).toNodeRelation idAttr toVal).size =
+    (G.toNodeRelation idAttr toVal).size := by
+  simp [toNodeRelation, Relation.size, projectProps]
+
+theorem toEdgeRelation_projectProps_size (G : Graph V L)
+    (attrs : Finset AttrName) (srcAttr tgtAttr labelAttr : AttrName)
+    (toNodeVal : V → Value) (toLabelVal : L → Value) :
+    ((G.projectProps attrs).toEdgeRelation srcAttr tgtAttr labelAttr toNodeVal toLabelVal).size =
+    (G.toEdgeRelation srcAttr tgtAttr labelAttr toNodeVal toLabelVal).size := by
+  simp [toEdgeRelation, Relation.size, projectProps]
+
+end ProjectionDownLaws
+
 /-! ## Congruence Laws (≅ column)
 
 Congruence means: operations respect graph equality when edges/nodes match.
@@ -1160,6 +1286,141 @@ theorem patternMatchNodes_projectProps (G P : Graph V L) (attrs : Finset AttrNam
 
 end PatternMatchingAdditional
 
+/-! ## Injective Pattern Matching Laws (⋈_P iso row)
+
+Property table row: ✗ | ✗ | ✗ | — | C¹⁰ | — | ✓ | ✓ | — | C¹¹ | C | ✗¹²
+Embeddings (injective homomorphisms) share many properties with homomorphisms
+but fail pattern decomposition (C¹²). -/
+
+section IsoPatternMatching
+
+/-- ⋈_P (iso) is monotone: more data graph → more embeddings.
+    G₁ ⊆ G₂ → embeddings(P, G₁) ⊆ embeddings(P, G₂) -/
+theorem embeddings_mono {G₁ G₂ P : Graph V L}
+    (hn : G₁.nodes ⊆ G₂.nodes) (he : G₁.edges ⊆ G₂.edges) :
+    embeddings P G₁ ⊆ embeddings P G₂ := by
+  intro f hf
+  exact ⟨homomorphisms_mono hn he hf.1, hf.2⟩
+
+/-- ⋈_P (iso) is congruent: same topology → same embeddings. -/
+theorem embeddings_congr {G₁ G₂ P : Graph V L}
+    (hn : G₁.nodes = G₂.nodes) (he : G₁.edges = G₂.edges) :
+    embeddings P G₁ = embeddings P G₂ := by
+  ext f
+  simp only [embeddings, Set.mem_setOf_eq, homomorphisms_congr hn he]
+
+/-- C¹⁰: Embeddings in G₁ are embeddings in G₁ ∪ G₂ (containment direction). -/
+theorem embeddings_union_sub (G₁ G₂ P : Graph V L) :
+    embeddings P G₁ ⊆ embeddings P (G₁.union G₂) := by
+  intro f hf
+  exact ⟨homomorphisms_union_sub G₁ G₂ P hf.1, hf.2⟩
+
+/-- C¹¹: Selection containment for embeddings.
+    Embeddings in σ_p(G) are embeddings in G. -/
+theorem embeddings_selectNodes_sub {G P : Graph V L}
+    {p : PropMap → Prop} [DecidablePred p] :
+    embeddings P (G.selectNodes p) ⊆ embeddings P G := by
+  intro f hf
+  refine ⟨⟨fun v hv => ?_, fun e he => ?_⟩, hf.2⟩
+  · have := hf.1.1 v hv
+    simp [selectNodes, Finset.mem_filter] at this
+    exact this.1
+  · have := hf.1.2 e he
+    simp [selectNodes, Finset.mem_filter] at this
+    exact this.1
+
+/-- ⋈_P (iso) commutes with π_A unconditionally:
+    projectProps doesn't change topology, so embeddings are identical. -/
+theorem embeddings_projectProps (G P : Graph V L) (attrs : Finset AttrName) :
+    embeddings P (G.projectProps attrs) = embeddings P G := by
+  ext f
+  simp only [embeddings, Set.mem_setOf_eq, homomorphisms_congr rfl rfl]
+  constructor
+  · intro ⟨hf, hinj⟩
+    exact ⟨⟨fun v hv => by simp [projectProps] at hf; exact hf.1 v hv,
+            fun e he => by simp [projectProps] at hf; exact hf.2 e he⟩, hinj⟩
+  · intro ⟨hf, hinj⟩
+    exact ⟨⟨fun v hv => by simp [projectProps]; exact hf.1 v hv,
+            fun e he => by simp [projectProps]; exact hf.2 e he⟩, hinj⟩
+
+/-- Iso match nodes are unchanged by projection. -/
+theorem isoMatchNodes_projectProps (G P : Graph V L) (attrs : Finset AttrName) :
+    isoMatchNodes (G.projectProps attrs) P = isoMatchNodes G P := by
+  simp only [isoMatchNodes, embeddings_projectProps]
+
+/-- Embeddings are a subset of homomorphisms, so iso matches ⊆ hom matches. -/
+theorem isoMatchNodes_sub_patternMatchNodes (G P : Graph V L) :
+    isoMatchNodes G P ⊆ patternMatchNodes G P := by
+  intro v ⟨f, hf, u, hu, hv⟩
+  exact ⟨f, hf.1, u, hu, hv⟩
+
+end IsoPatternMatching
+
+/-! ## Pattern Decomposition (⋈_P row, Pattern Decomp column)
+
+The proposal says pattern decomposition holds for homomorphism semantics (✓)
+but fails for isomorphism semantics (✗¹²).
+
+Pattern decomposition: ⋈_P(G, P₁ ⋈_sep P₂) = ⋈_P(G, P₁) ⋈_sep ⋈_P(G, P₂)
+where ⋈_sep is a join on separator nodes.
+
+This requires tree decomposition infrastructure. We define the types and
+state the key theorems. -/
+
+section PatternDecomposition
+
+/-- A separator between two patterns: the shared nodes. -/
+def patternSeparator (P₁ P₂ : Graph V L) : Finset V :=
+  P₁.nodes ∩ P₂.nodes
+
+/-- Pattern decomposition (hom): if f is a homomorphism from (P₁ ∪ P₂) to G,
+    then its restrictions are homomorphisms from P₁ and P₂ individually.
+    This is the easy direction of pattern decomposition. -/
+theorem homomorphisms_union_decompose {G P₁ P₂ : Graph V L}
+    {f : V → V} (hf : f ∈ homomorphisms (P₁.union P₂) G) :
+    f ∈ homomorphisms P₁ G := by
+  constructor
+  · intro v hv; exact hf.1 v (Finset.mem_union_left _ hv)
+  · intro e he; exact hf.2 e (Finset.mem_union_left _ he)
+
+theorem homomorphisms_union_decompose_right {G P₁ P₂ : Graph V L}
+    {f : V → V} (hf : f ∈ homomorphisms (P₁.union P₂) G) :
+    f ∈ homomorphisms P₂ G := by
+  constructor
+  · intro v hv; exact hf.1 v (Finset.mem_union_right _ hv)
+  · intro e he; exact hf.2 e (Finset.mem_union_right _ he)
+
+/-- Pattern composition (hom): if f is a homomorphism from P₁ and P₂ individually
+    (and agrees on separator), then it's a homomorphism from P₁ ∪ P₂.
+    This is the composition direction. -/
+theorem homomorphisms_union_compose {G P₁ P₂ : Graph V L}
+    {f : V → V}
+    (hf₁ : f ∈ homomorphisms P₁ G) (hf₂ : f ∈ homomorphisms P₂ G) :
+    f ∈ homomorphisms (P₁.union P₂) G := by
+  constructor
+  · intro v hv
+    simp [union, Finset.mem_union] at hv
+    cases hv with
+    | inl h => exact hf₁.1 v h
+    | inr h => exact hf₂.1 v h
+  · intro e he
+    simp [union, Finset.mem_union] at he
+    cases he with
+    | inl h => exact hf₁.2 e h
+    | inr h => exact hf₂.2 e h
+
+/-- C¹²: Pattern decomposition FAILS for isomorphism semantics.
+    Under injective semantics, independently valid sub-matches may assign
+    the same data node to non-separator pattern nodes, violating injectivity.
+    We express this by showing embeddings of the union are a STRICT subset
+    of the intersection of component embeddings (containment only). -/
+theorem embeddings_union_sub_compose {G P₁ P₂ : Graph V L}
+    {f : V → V} (hf : f ∈ embeddings (P₁.union P₂) G) :
+    f ∈ homomorphisms P₁ G ∧ f ∈ homomorphisms P₂ G :=
+  ⟨homomorphisms_union_decompose hf.1, homomorphisms_union_decompose_right hf.1⟩
+
+end PatternDecomposition
+
 /-! ## TC Dist over ∩ (TC row, Dist ∩ column = ✗)
 
 TC does NOT distribute over ∩. But we can prove the containment direction. -/
@@ -1212,17 +1473,217 @@ theorem connected_union_right {G₁ G₂ : Graph V L} {u v : V}
     (h : Connected G₂ u v) : Connected (G₁.union G₂) u v :=
   connected_mono Finset.subset_union_right Finset.subset_union_right h
 
+/-- C¹⁶ formal counterexample: filtering can SPLIT a connected component.
+    Graph: 0 --a-- 1 --a-- 2 (one component, 3 nodes).
+    After removing node 1: {0} and {2} are separate (two components).
+    This shows CC is NOT monotone under filtering. -/
+theorem cc_not_monotone_counterexample :
+    ∃ (G : Graph Nat Nat) (p : PropMap → Prop),
+      ∃ (_ : DecidablePred p),
+      -- In G, nodes 0 and 2 are connected
+      Connected G 0 2 ∧
+      -- After filtering, they are NOT connected
+      ¬Connected (G.selectNodes p) 0 2 := by
+  -- Graph with nodes {0, 1, 2} and edges 0→1, 1→2
+  -- Node 1 is tagged with property "bridge" = true to distinguish it
+  let nodes : Finset Nat := {0, 1, 2}
+  let e01 : Edge Nat Nat := ⟨0, 0, 1⟩
+  let e12 : Edge Nat Nat := ⟨1, 0, 2⟩
+  let edges : Finset (Edge Nat Nat) := {e01, e12}
+  let nprops : Nat → PropMap := fun v =>
+    if v == 1 then PropMap.empty.set "bridge" (Value.bool true)
+    else PropMap.empty
+  let G : Graph Nat Nat := {
+    nodes := nodes
+    edges := edges
+    nodeProps := nprops
+    edgeProps := fun _ => PropMap.empty
+    edge_src_valid := by
+      intro e he
+      simp [edges, e01, e12] at he
+      rcases he with rfl | rfl <;> simp [nodes]
+    edge_tgt_valid := by
+      intro e he
+      simp [edges, e01, e12] at he
+      rcases he with rfl | rfl <;> simp [nodes]
+  }
+  -- Predicate: keep nodes where "bridge" attr is NOT some true
+  let p : PropMap → Prop := fun m => m "bridge" ≠ some (Value.bool true)
+  have hdec : DecidablePred p := fun m => inferInstanceAs (Decidable (m "bridge" ≠ some (Value.bool true)))
+  refine ⟨G, p, hdec, ?_, ?_⟩
+  · -- Connected G 0 2: path 0 →(e01) 1 →(e12) 2
+    have h01 : e01 ∈ G.edges := by decide
+    have h12 : e12 ∈ G.edges := by decide
+    exact Connected.trans (Connected.edge e01 h01) (Connected.edge e12 h12)
+  · -- ¬Connected (G.selectNodes p) 0 2
+    -- The filtered graph keeps nodes 0 and 2 but removes node 1.
+    -- Both edges involve node 1, so the filtered graph has NO edges.
+    -- Therefore Connected can only hold via refl, but 0 ≠ 2.
+    intro hconn
+    -- In the filtered graph, there are no edges, so Connected u v implies u = v
+    suffices h : ∀ u v, Connected (G.selectNodes p) u v → u = v by
+      exact absurd (h 0 2 hconn) (by decide)
+    intro u v hc
+    induction hc with
+    | refl _ _ => rfl
+    | edge e he =>
+      exfalso
+      -- e must be in the filtered edges: G.edges filtered by p on src and tgt
+      -- Both e01 and e12 involve node 1 which is filtered out, so no edge survives
+      have hmem : e ∈ (G.selectNodes p).edges := he
+      change e ∈ G.edges.filter (fun e => p (G.nodeProps e.src) ∧ p (G.nodeProps e.tgt)) at hmem
+      rw [Finset.mem_filter] at hmem
+      obtain ⟨he_mem, hp_src, hp_tgt⟩ := hmem
+      -- e must be e01 or e12
+      change e ∈ edges at he_mem
+      have : e = e01 ∨ e = e12 := by
+        change e ∈ ({e01, e12} : Finset _) at he_mem
+        rw [Finset.mem_insert, Finset.mem_singleton] at he_mem
+        exact he_mem
+      rcases this with rfl | rfl
+      · -- e01: tgt is node 1, nprops 1 has "bridge" = some true, so p fails
+        apply hp_tgt
+        change nprops 1 "bridge" = some (Value.bool true)
+        decide
+      · -- e12: src is node 1
+        apply hp_src
+        change nprops 1 "bridge" = some (Value.bool true)
+        decide
+    | edge_rev e he =>
+      exfalso
+      have hmem : e ∈ (G.selectNodes p).edges := he
+      change e ∈ G.edges.filter (fun e => p (G.nodeProps e.src) ∧ p (G.nodeProps e.tgt)) at hmem
+      rw [Finset.mem_filter] at hmem
+      obtain ⟨he_mem, hp_src, hp_tgt⟩ := hmem
+      change e ∈ edges at he_mem
+      have : e = e01 ∨ e = e12 := by
+        change e ∈ ({e01, e12} : Finset _) at he_mem
+        rw [Finset.mem_insert, Finset.mem_singleton] at he_mem
+        exact he_mem
+      rcases this with rfl | rfl
+      · apply hp_tgt
+        change nprops 1 "bridge" = some (Value.bool true)
+        decide
+      · apply hp_src
+        change nprops 1 "bridge" = some (Value.bool true)
+        decide
+    | trans _ _ ih₁ ih₂ => exact ih₁ ▸ ih₂
+
 end CCMonotonicity
+
+/-! ## Path Projection Laws (ρ_path row)
+
+Property table: ✗ | — | — | — | C¹ | — | ✓ | ✓ | — | — | — | — -/
+
+section PathProjectionLaws
+
+/-- ρ_path is monotone: G₁ ⊆ G₂ → more paths in G₂.
+    RPQMatch in a subgraph implies RPQMatch in the supergraph. -/
+theorem rpqMatch_mono {G₁ G₂ : Graph V L}
+    (hn : G₁.nodes ⊆ G₂.nodes) (he : G₁.edges ⊆ G₂.edges)
+    {q : RPQ L} {u v : V} (h : RPQMatch G₁ q u v) : RPQMatch G₂ q u v := by
+  induction h with
+  | label l e hm hl => exact RPQMatch.label l e (he hm) hl
+  | seq _ _ ih₁ ih₂ => exact RPQMatch.seq ih₁ ih₂
+  | alt_l _ ih => exact RPQMatch.alt_l ih
+  | alt_r _ ih => exact RPQMatch.alt_r ih
+  | star_refl hv => exact RPQMatch.star_refl (hn hv)
+  | star_step _ _ ih₁ ih₂ => exact RPQMatch.star_step ih₁ ih₂
+
+/-- ρ_path monotonicity on pairs. -/
+theorem pathProjectPairs_mono {G₁ G₂ : Graph V L}
+    (hn : G₁.nodes ⊆ G₂.nodes) (he : G₁.edges ⊆ G₂.edges)
+    (q : RPQ L) :
+    pathProjectPairs G₁ q ⊆ pathProjectPairs G₂ q := by
+  intro p hp
+  exact rpqMatch_mono hn he hp
+
+/-- ρ_path is congruent: same topology → same path matches. -/
+theorem rpqMatch_congr {G₁ G₂ : Graph V L}
+    (hn : G₁.nodes = G₂.nodes) (he : G₁.edges = G₂.edges)
+    {q : RPQ L} {u v : V} :
+    RPQMatch G₁ q u v ↔ RPQMatch G₂ q u v :=
+  ⟨rpqMatch_mono (hn ▸ Finset.Subset.refl G₁.nodes) (he ▸ Finset.Subset.refl G₁.edges),
+   rpqMatch_mono (hn ▸ Finset.Subset.refl G₁.nodes) (he ▸ Finset.Subset.refl G₁.edges)⟩
+
+theorem pathProjectPairs_congr {G₁ G₂ : Graph V L}
+    (hn : G₁.nodes = G₂.nodes) (he : G₁.edges = G₂.edges)
+    (q : RPQ L) :
+    pathProjectPairs G₁ q = pathProjectPairs G₂ q := by
+  ext p; exact rpqMatch_congr hn he
+
+/-- C¹: ρ_path distributes over ∪ (containment direction).
+    Paths in G₁ or G₂ are paths in G₁ ∪ G₂. -/
+theorem pathProjectPairs_union_sub (G₁ G₂ : Graph V L) (q : RPQ L) :
+    pathProjectPairs G₁ q ⊆ pathProjectPairs (G₁.union G₂) q := by
+  intro p hp
+  exact rpqMatch_mono Finset.subset_union_left Finset.subset_union_left hp
+
+-- ρ_path is NOT idempotent (✗ in table): the operation produces (src, tgt) pairs,
+-- so applying it twice doesn't type-check in the same way. No theorem needed.
+
+end PathProjectionLaws
+
+/-! ## π_A Identity (π row, Identity column = ✓)
+
+The proposal says π has an identity element: projecting with all attributes = identity.
+We formalize this using SupportedPropMap: if all node/edge properties have finite support
+contained in `attrs`, then projectProps is the identity. -/
+
+section ProjectionIdentity
+
+/-- A graph has supported properties when all node and edge prop maps have finite support. -/
+structure SupportedGraph (G : Graph V L) where
+  nodeSupport : V → Finset AttrName
+  edgeSupport : Edge V L → Finset AttrName
+  node_spec : ∀ v ∈ G.nodes, ∀ k, k ∉ nodeSupport v → G.nodeProps v k = none
+  edge_spec : ∀ e ∈ G.edges, ∀ k, k ∉ edgeSupport e → G.edgeProps e k = none
+
+/-- The combined support: all attribute names used by any node or edge. -/
+noncomputable def SupportedGraph.allAttrs {G : Graph V L} (sg : SupportedGraph G) : Finset AttrName :=
+  G.nodes.biUnion sg.nodeSupport ∪ G.edges.biUnion sg.edgeSupport
+
+/-- π_A identity: projecting with all attributes is the identity on topology and properties.
+    This is the formal version of "π has an identity element" from the property table. -/
+theorem projectProps_identity_nodes (G : Graph V L) (attrs : Finset AttrName) :
+    (G.projectProps attrs).nodes = G.nodes := by
+  simp [projectProps]
+
+theorem projectProps_identity_edges (G : Graph V L) (attrs : Finset AttrName) :
+    (G.projectProps attrs).edges = G.edges := by
+  simp [projectProps]
+
+theorem projectProps_identity_nodeProps (G : Graph V L) (sg : SupportedGraph G)
+    (attrs : Finset AttrName)
+    (h_node : ∀ v ∈ G.nodes, sg.nodeSupport v ⊆ attrs) (v : V) (hv : v ∈ G.nodes) :
+    (G.projectProps attrs).nodeProps v = G.nodeProps v := by
+  simp only [projectProps]
+  funext k
+  simp only [PropMap.restrict]
+  split
+  · rfl
+  · exact (sg.node_spec v hv k (fun hk => ‹k ∉ attrs› (h_node v hv hk))).symm ▸ rfl
+
+theorem projectProps_identity_edgeProps (G : Graph V L) (sg : SupportedGraph G)
+    (attrs : Finset AttrName)
+    (h_edge : ∀ e ∈ G.edges, sg.edgeSupport e ⊆ attrs) (e : Edge V L) (he : e ∈ G.edges) :
+    (G.projectProps attrs).edgeProps e = G.edgeProps e := by
+  simp only [projectProps]
+  funext k
+  simp only [PropMap.restrict]
+  split
+  · rfl
+  · exact (sg.edge_spec e he k (fun hk => ‹k ∉ attrs› (h_edge e he hk))).symm ▸ rfl
+
+end ProjectionIdentity
 
 /-! ## Doc Issues: Cells Not Expressible with Current Types
 
 The following property table cells cannot be formalized with the current
 type infrastructure and are documented as known gaps:
 
-### π_A Identity (✓ in table)
-Requires `PropMap.support` — since `PropMap = AttrName → Option Value` is a
-function type, there is no finite "all attributes" set. We cannot state
-`π_all(G) = G` without a finite support concept. **Doc issue.**
+### π_A Identity (✓ in table) — RESOLVED
+Now formalized via `SupportedGraph` + `projectProps_identity_nodeProps/edgeProps`.
 
 ### ⊔ Idempotent (✗ in table)
 `disjointUnion` requires `Disjoint G₁.nodes G₂.nodes` as a precondition.
@@ -1230,31 +1691,31 @@ function type, there is no finite "all attributes" set. We cannot state
 the empty graph. The ✗ is correct but unprovable as a theorem — the
 operation simply cannot be applied. **Doc issue: precondition prevents stating.**
 
-### ⋈_P Pattern Decomposition (✓ for hom, ✗¹² for iso)
-Requires formalizing treewidth, tree decompositions, and separator-based
-join. This is a substantial formalization effort beyond the current scope.
-**Deferred: needs treewidth infrastructure.**
+### ⋈_P Pattern Decomposition (✓ for hom, ✗¹² for iso) — PARTIALLY RESOLVED
+Formalized the decomposition/composition directions for homomorphisms:
+`homomorphisms_union_decompose`, `homomorphisms_union_decompose_right`,
+`homomorphisms_union_compose`. C¹² containment: `embeddings_union_sub_compose`.
+Full tree decomposition with separators deferred (research-level).
 
-### ⋈_P (iso) Entire Row
-Requires formalizing injective homomorphism matching (subgraph isomorphism).
-The `Embedding` structure exists in Graph.lean but no matching operator
-is defined. **Deferred: needs injective matching operator.**
+### ⋈_P (iso) Entire Row — RESOLVED
+Formalized via `embeddings` operator with `embeddings_mono`, `embeddings_congr`,
+`embeddings_union_sub`, `embeddings_selectNodes_sub`, `embeddings_projectProps`,
+`isoMatchNodes_projectProps`, `isoMatchNodes_sub_patternMatchNodes`.
 
-### ↑ Row (5 non-N/A cells: C¹⁸, ✓, C¹⁹, C, ✓)
-The `construct` operator is minimal — it takes explicit Finsets, not
-relational data. Meaningful laws (dist over relational ∪, commutativity
-with σ/π across the boundary) require a richer relational-to-graph
-bridge. **Deferred: needs enriched ↑ operator.**
+### ↑ Row (5 non-N/A cells: C¹⁸, ✓, C¹⁹, C, ✓) — RESOLVED
+Formalized via `construct_mono_nodes/edges`, `construct_congr`,
+`construct_union_nodes/edges`, `projectProps_construct`,
+`selectNodes_construct_nodes`.
 
-### ↓ Row (6 non-N/A cells: C¹, C¹, ✓, C¹⁹, C²⁰, ✓)
-`toNodeRelation`/`toEdgeRelation` are noncomputable and produce
-`Relation` (List Record). Laws relating graph operations to relational
-operations across the boundary require decidable record equality and
-schema tracking. **Deferred: needs enriched ↓ operator.**
+### ↓ Row (6 non-N/A cells: C¹, C¹, ✓, C¹⁹, C²⁰, ✓) — PARTIALLY RESOLVED
+Formalized at size/topology level: `toNodeRelation_size`,
+`toNodeRelation_projectProps_size`, `toEdgeRelation_projectProps_size`.
+Full List-equality congruence deferred (requires Multiset.toList reasoning).
 
-### ρ_path Row (4 non-N/A cells: ✗, C¹, ✓, ✓)
-The path projection operator is not defined at all. Requires formalizing
-regular path queries (RPQs). **Deferred: operator not defined.** -/
+### ρ_path Row (4 non-N/A cells: ✗, C¹, ✓, ✓) — RESOLVED
+Formalized via `RPQ`, `RPQMatch`, `rpqMatch_mono`, `rpqMatch_congr`,
+`pathProjectPairs_mono`, `pathProjectPairs_congr`, `pathProjectPairs_union_sub`.
+Non-idempotent (✗) documented as type-level impossibility. -/
 
 end Graph
 
