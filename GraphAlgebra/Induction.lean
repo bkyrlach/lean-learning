@@ -267,6 +267,8 @@ structure TreeDecomp (G : Graph V L) where
   parent : ℕ → ℕ
   parent_valid : ∀ t ∈ treeNodes, parent t ∈ treeNodes
   parent_root : parent root = root
+  /-- Parent chains reach root (ensures the parent function defines a tree). -/
+  parent_reaches_root : ∀ t ∈ treeNodes, ∃ n, parent^[n] t = root
   bag : ℕ → Finset V
   vertex_cover : ∀ v ∈ G.nodes, ∃ t ∈ treeNodes, v ∈ bag t
   edge_cover : ∀ e ∈ G.edges, ∃ t ∈ treeNodes, e.src ∈ bag t ∧ e.tgt ∈ bag t
@@ -289,11 +291,11 @@ each split uses a separator of bounded size. This is the structural content
 of the tree decomposition theorem. -/
 
 /-- A recursive separator decomposition of a graph.
-This witnesses that G can be built up from edgeless base cases by
-repeated gluing along bounded separators. -/
+This witnesses that G can be built up from small base cases (fitting in a
+single bag of size ≤ k+1) by repeated gluing along bounded separators. -/
 inductive SepDecomp : Graph V L → ℕ → Prop where
-  /-- Base: an edgeless graph. -/
-  | base (G : Graph V L) (k : ℕ) : G.edges = ∅ → SepDecomp G k
+  /-- Base: a graph small enough to fit in a single bag. -/
+  | base (G : Graph V L) (k : ℕ) : G.nodes.card ≤ k + 1 → SepDecomp G k
   /-- Step: G is glued from G₁, G₂ along separator S with |S| ≤ k+1,
       and both G₁, G₂ have recursive decompositions. -/
   | glue (G G₁ G₂ : Graph V L) (S : Finset V) (k : ℕ) :
@@ -304,16 +306,237 @@ inductive SepDecomp : Graph V L → ℕ → Prop where
     SepDecomp G₁ k →
     SepDecomp G₂ k → SepDecomp G k
 
+/-- Following the parent chain preserves bag membership for G.nodes vertices
+when every such vertex is in ≥ 2 bags. -/
+theorem bag_mem_of_parent_iterate {G : Graph V L}
+    (td : TreeDecomp G) (v : V) (hv : v ∈ G.nodes)
+    (h_subset : ∀ t ∈ td.treeNodes, t ≠ td.root →
+      ∀ w ∈ G.nodes, w ∈ td.bag t → w ∈ td.bag (td.parent t))
+    (t : ℕ) (ht : t ∈ td.treeNodes) (hvt : v ∈ td.bag t)
+    (n : ℕ) (hn : td.parent^[n] t = td.root) :
+    v ∈ td.bag td.root := by
+  induction n generalizing t with
+  | zero => simp at hn; rwa [← hn]
+  | succ n ih =>
+    by_cases htr : t = td.root
+    · rwa [← htr]
+    · have hvp := h_subset t ht htr v hv hvt
+      have hp_mem := td.parent_valid t ht
+      exact ih (td.parent t) hp_mem hvp (by simpa [Function.iterate_succ'] using hn)
+
+/-- Bag size bound from width: every bag has ≤ k+1 elements when width ≤ k. -/
+theorem bag_card_le_of_width {G : Graph V L}
+    (td : TreeDecomp G) (hwidth : td.width ≤ k) (t : ℕ) (ht : t ∈ td.treeNodes) :
+    (td.bag t).card ≤ k + 1 := by
+  have h1 : (td.bag t).card ≤ td.treeNodes.sup (fun s => (td.bag s).card) :=
+    Finset.le_sup (f := fun s => (td.bag s).card) ht
+  have h2 : td.treeNodes.sup (fun s => (td.bag s).card) ≤ k + 1 := by
+    unfold TreeDecomp.width at hwidth; omega
+  exact le_trans h1 h2
+
+/-- In a tree decomposition of width ≤ k where |V(G)| > k+1, there exists a vertex
+that appears in exactly one bag. -/
+theorem exists_unique_bag_vertex {G : Graph V L} {k : ℕ}
+    (td : TreeDecomp G) (hwidth : td.width ≤ k)
+    (hlarge : k + 1 < G.nodes.card) :
+    ∃ v ∈ G.nodes, ∃ t ∈ td.treeNodes,
+      v ∈ td.bag t ∧ ∀ s ∈ td.treeNodes, v ∈ td.bag s → s = t := by
+  by_contra h_no_unique
+  push_neg at h_no_unique
+  -- h_no_unique : ∀ v ∈ G.nodes, ∀ t ∈ td.treeNodes, v ∈ td.bag t →
+  --              ∃ s ∈ td.treeNodes, v ∈ td.bag s ∧ s ≠ t
+  -- For non-root t, every G.nodes vertex in bag(t) is also in bag(parent(t))
+  have h_subset : ∀ t ∈ td.treeNodes, t ≠ td.root →
+      ∀ v ∈ G.nodes, v ∈ td.bag t → v ∈ td.bag (td.parent t) := by
+    intro t ht hne v hv hvt
+    rcases td.running_intersection t ht hne v hvt with h | h
+    · exact h
+    · obtain ⟨s, hs, hvs, hst⟩ := h_no_unique v hv t ht hvt
+      exact absurd (h s hs hvs) hst
+  -- All G.nodes vertices are in bag(root)
+  have h_all_in_root : ∀ v ∈ G.nodes, v ∈ td.bag td.root := by
+    intro v hv
+    obtain ⟨t₀, ht₀, hvt₀⟩ := td.vertex_cover v hv
+    obtain ⟨n, hn⟩ := td.parent_reaches_root t₀ ht₀
+    exact bag_mem_of_parent_iterate td v hv h_subset t₀ ht₀ hvt₀ n hn
+  -- |G.nodes| ≤ |bag(root)| ≤ k+1
+  have h_card : G.nodes.card ≤ (td.bag td.root).card :=
+    Finset.card_le_card (fun v hv => h_all_in_root v hv)
+  have h_bag_bound := bag_card_le_of_width td hwidth td.root td.root_mem
+  omega
+
+/-- Construct the "G minus v" graph: remove vertex v and all incident edges. -/
+noncomputable def graphMinusVertex (G : Graph V L) (v : V) : Graph V L where
+  nodes := G.nodes.erase v
+  edges := G.edges.filter (fun e => e.src ≠ v ∧ e.tgt ≠ v)
+  nodeProps := G.nodeProps
+  edgeProps := G.edgeProps
+  edge_src_valid := by
+    intro e he; simp only [Finset.mem_filter] at he
+    exact Finset.mem_erase.mpr ⟨he.2.1, G.edge_src_valid e he.1⟩
+  edge_tgt_valid := by
+    intro e he; simp only [Finset.mem_filter] at he
+    exact Finset.mem_erase.mpr ⟨he.2.2, G.edge_tgt_valid e he.1⟩
+
+/-- A tree decomposition for G minus v, by removing v from all bags. -/
+noncomputable def treeDecompMinusVertex {G : Graph V L}
+    (td : TreeDecomp G) (v : V) : TreeDecomp (graphMinusVertex G v) where
+  treeNodes := td.treeNodes
+  root := td.root
+  root_mem := td.root_mem
+  parent := td.parent
+  parent_valid := td.parent_valid
+  parent_root := td.parent_root
+  parent_reaches_root := td.parent_reaches_root
+  bag := fun t => (td.bag t).erase v
+  vertex_cover := by
+    intro w hw
+    simp only [graphMinusVertex, Finset.mem_erase] at hw
+    obtain ⟨t, ht, hwt⟩ := td.vertex_cover w hw.2
+    exact ⟨t, ht, Finset.mem_erase.mpr ⟨hw.1, hwt⟩⟩
+  edge_cover := by
+    intro e he
+    simp only [graphMinusVertex, Finset.mem_filter] at he
+    obtain ⟨t, ht, hst, htt⟩ := td.edge_cover e he.1
+    exact ⟨t, ht, Finset.mem_erase.mpr ⟨he.2.1, hst⟩, Finset.mem_erase.mpr ⟨he.2.2, htt⟩⟩
+  running_intersection := by
+    intro t ht hne w hw
+    simp only [Finset.mem_erase] at hw
+    rcases td.running_intersection t ht hne w hw.2 with h | h
+    · left; exact Finset.mem_erase.mpr ⟨hw.1, h⟩
+    · right; intro s hs hws
+      simp only [Finset.mem_erase] at hws
+      exact h s hs hws.2
+
+theorem treeDecompMinusVertex_width_le {G : Graph V L}
+    (td : TreeDecomp G) (v : V) (hwidth : td.width ≤ k) :
+    (treeDecompMinusVertex td v).width ≤ k := by
+  unfold TreeDecomp.width at hwidth ⊢
+  simp only [treeDecompMinusVertex]
+  have h_sup_le : td.treeNodes.sup (fun t => ((td.bag t).erase v).card) ≤
+      td.treeNodes.sup (fun t => (td.bag t).card) := by
+    apply Finset.sup_le
+    intro t ht
+    calc ((td.bag t).erase v).card
+        ≤ (td.bag t).card := Finset.card_erase_le
+      _ ≤ td.treeNodes.sup (fun s => (td.bag s).card) :=
+          Finset.le_sup (f := fun s => (td.bag s).card) ht
+  omega
+
+/-- The gluing of G from (induced on B) and (G minus v) along (B minus v). -/
+theorem isGluing_bag_split {G : Graph V L}
+    (td : TreeDecomp G) (v : V) (hv : v ∈ G.nodes)
+    (t : ℕ) (ht : t ∈ td.treeNodes) (hvt : v ∈ td.bag t)
+    (h_unique : ∀ s ∈ td.treeNodes, v ∈ td.bag s → s = t)
+    (hB_sub : td.bag t ∩ G.nodes ⊆ G.nodes) :
+    let B := td.bag t ∩ G.nodes
+    let G₁ := G.inducedSubgraph B hB_sub
+    let G₂ := graphMinusVertex G v
+    IsGluing G G₁ G₂ ((td.bag t ∩ G.nodes).erase v) := by
+  constructor
+  · -- separator_eq: S = G₁.nodes ∩ G₂.nodes
+    ext w
+    simp only [inducedSubgraph, graphMinusVertex, Finset.mem_inter, Finset.mem_erase]
+    constructor
+    · intro ⟨hw, hwt⟩
+      exact ⟨⟨hwt.1, hwt.2⟩, ⟨hw, hwt.2⟩⟩
+    · intro ⟨⟨hwt, hwG⟩, ⟨hwv, _⟩⟩
+      exact ⟨hwv, hwt, hwG⟩
+  · -- nodes_cover: G.nodes = G₁.nodes ∪ G₂.nodes
+    ext w
+    simp only [inducedSubgraph, graphMinusVertex, Finset.mem_union, Finset.mem_inter,
+      Finset.mem_erase]
+    constructor
+    · intro hw
+      by_cases hwv : w = v
+      · left; subst hwv; exact ⟨hvt, hv⟩
+      · right; exact ⟨hwv, hw⟩
+    · intro h
+      rcases h with ⟨_, hw⟩ | ⟨_, hw⟩ <;> exact hw
+  · -- edges_cover: G.edges = G₁.edges ∪ G₂.edges
+    ext e
+    simp only [inducedSubgraph, graphMinusVertex, Finset.mem_union, Finset.mem_filter,
+      Finset.mem_inter]
+    constructor
+    · intro he
+      by_cases hsv : e.src = v ∨ e.tgt = v
+      · -- Edge incident to v: must be in G₁ (both endpoints in bag t)
+        left
+        refine ⟨he, ?_, ?_⟩
+        · obtain ⟨s, _, hss, hst⟩ := td.edge_cover e he
+          rcases hsv with rfl | rfl
+          · exact ⟨hvt, hv⟩
+          · have := h_unique s ‹_› hst; subst this; exact ⟨hss, G.edge_src_valid e he⟩
+        · obtain ⟨s, _, hss, hst⟩ := td.edge_cover e he
+          rcases hsv with rfl | rfl
+          · have := h_unique s ‹_› hss; subst this; exact ⟨hst, G.edge_tgt_valid e he⟩
+          · exact ⟨hvt, hv⟩
+      · -- Edge not incident to v: in G₂
+        push_neg at hsv
+        right; exact ⟨he, hsv.1, hsv.2⟩
+    · intro h
+      rcases h with ⟨he, _⟩ | ⟨he, _⟩ <;> exact he
+  · -- edges_valid₁
+    intro e he
+    simp only [inducedSubgraph, Finset.mem_filter, Finset.mem_inter] at he ⊢
+    exact ⟨⟨he.2.1.1, he.2.1.2⟩, ⟨he.2.2.1, he.2.2.2⟩⟩
+  · -- edges_valid₂
+    intro e he
+    simp only [graphMinusVertex, Finset.mem_filter, Finset.mem_erase] at he ⊢
+    exact ⟨⟨he.2.1, G.edge_src_valid e he.1⟩, ⟨he.2.2, G.edge_tgt_valid e he.1⟩⟩
+
 /-- Bounded treewidth implies separator decomposition.
 This is the deep combinatorial content — every graph of treewidth ≤ k
-admits a recursive separator decomposition with separators of size ≤ k+1.
-
-The proof requires showing that a tree decomposition can be converted into
-a recursive separator decomposition by choosing edges of the decomposition
-tree and splitting along the corresponding bags. -/
+admits a recursive separator decomposition with separators of size ≤ k+1. -/
 theorem sepDecomp_of_hasTreewidthAtMost {G : Graph V L} {k : ℕ}
     (_htw : HasTreewidthAtMost G k) : SepDecomp G k := by
-  sorry -- Deep combinatorial theorem (tree decomposition → separator decomposition)
+  -- Strong induction on |V(G)|
+  suffices h : ∀ n (G : Graph V L), G.nodes.card = n →
+      HasTreewidthAtMost G k → SepDecomp G k from h _ G rfl _htw
+  intro n
+  induction n using Nat.strongRecOn' with
+  | _ n ih =>
+    intro G hcard htw
+    by_cases hbase : G.nodes.card ≤ k + 1
+    · exact SepDecomp.base G k hbase
+    · push_neg at hbase
+      obtain ⟨td, hwidth⟩ := htw
+      obtain ⟨v, hv, t, ht, hvt, h_unique⟩ :=
+        exists_unique_bag_vertex td hwidth hbase
+      -- B = bag(t) ∩ G.nodes, G₁ = induced on B, G₂ = G minus v
+      let B := td.bag t ∩ G.nodes
+      have hB_sub : B ⊆ G.nodes := Finset.inter_subset_right
+      let G₁ := G.inducedSubgraph B hB_sub
+      let G₂ := graphMinusVertex G v
+      have hS := (td.bag t ∩ G.nodes).erase v
+      -- Separator size: |B \ {v}| ≤ |B| - 1 ≤ k+1 - 1 = k ≤ k+1
+      have hsep_card : ((td.bag t ∩ G.nodes).erase v).card ≤ k + 1 := by
+        calc ((td.bag t ∩ G.nodes).erase v).card
+            ≤ (td.bag t ∩ G.nodes).card := Finset.card_erase_le
+          _ ≤ (td.bag t).card := Finset.card_le_card Finset.inter_subset_left
+          _ ≤ k + 1 := bag_card_le_of_width td hwidth t ht
+      -- G₁ size: |B| ≤ k+1 < |G.nodes|
+      have hG₁_lt : G₁.nodes.card < G.nodes.card := by
+        simp only [G₁, inducedSubgraph]
+        calc B.card ≤ (td.bag t).card := Finset.card_le_card Finset.inter_subset_left
+          _ ≤ k + 1 := bag_card_le_of_width td hwidth t ht
+          _ < G.nodes.card := hbase
+      -- G₂ size: |G.nodes| - 1
+      have hG₂_lt : G₂.nodes.card < G.nodes.card := by
+        simp only [G₂, graphMinusVertex]
+        exact Finset.card_erase_lt_of_mem hv
+      -- Gluing
+      have hglue := isGluing_bag_split td v hv t ht hvt h_unique hB_sub
+      -- Recursive calls
+      have hG₁_decomp : SepDecomp G₁ k := by
+        apply SepDecomp.base
+        simp only [G₁, inducedSubgraph]
+        calc B.card ≤ (td.bag t).card := Finset.card_le_card Finset.inter_subset_left
+          _ ≤ k + 1 := bag_card_le_of_width td hwidth t ht
+      have hG₂_decomp : SepDecomp G₂ k := by
+        apply ih (G₂.nodes.card) (by omega) G₂ rfl
+        exact ⟨treeDecompMinusVertex td v, treeDecompMinusVertex_width_le td v hwidth⟩
+      exact SepDecomp.glue G G₁ G₂ _ k hglue hsep_card hG₁_lt hG₂_lt hG₁_decomp hG₂_decomp
 
 /-! ## The induction principle -/
 
@@ -321,7 +544,7 @@ theorem sepDecomp_of_hasTreewidthAtMost {G : Graph V L} {k : ℕ}
 
 To prove a property P for all graphs admitting a separator decomposition
 with separators of size ≤ k+1, it suffices to show:
-1. P holds for every edgeless graph (treewidth 0 base case).
+1. P holds for every graph small enough to fit in a single bag (|V| ≤ k+1).
 2. If G is glued from G₁, G₂ along a separator S with |S| ≤ k+1,
    and P holds for both G₁ and G₂, then P holds for G.
 
@@ -329,7 +552,7 @@ This captures the recursive decomposition structure that algorithms like
 Lawler's chromatic number computation use implicitly. The key algebraic law:
   ⋈_P(G, P₁ ⋈_sep P₂) → ⋈_P(G, P₁) ⋈_sep ⋈_P(G, P₂) -/
 theorem separator_induction (k : ℕ) (P : Graph V L → Prop)
-    (h_base : ∀ G : Graph V L, G.edges = ∅ → P G)
+    (h_base : ∀ G : Graph V L, G.nodes.card ≤ k + 1 → P G)
     (h_glue : ∀ (G G₁ G₂ : Graph V L) (S : Finset V),
       IsGluing G G₁ G₂ S →
       S.card ≤ k + 1 →
@@ -338,11 +561,11 @@ theorem separator_induction (k : ℕ) (P : Graph V L → Prop)
   induction hdecomp with
   | base G _ h => exact h_base G h
   | glue G G₁ G₂ S _ hglue hsep _ _ _ _ ih₁ ih₂ =>
-    exact h_glue G G₁ G₂ S hglue hsep (ih₁ h_glue) (ih₂ h_glue)
+    exact h_glue G G₁ G₂ S hglue hsep (ih₁ h_base h_glue) (ih₂ h_base h_glue)
 
 /-- Separator induction from treewidth bound (combines the deep theorem). -/
 theorem separator_induction_tw (k : ℕ) (P : Graph V L → Prop)
-    (h_base : ∀ G : Graph V L, G.edges = ∅ → P G)
+    (h_base : ∀ G : Graph V L, G.nodes.card ≤ k + 1 → P G)
     (h_glue : ∀ (G G₁ G₂ : Graph V L) (S : Finset V),
       IsGluing G G₁ G₂ S →
       S.card ≤ k + 1 →
@@ -561,6 +784,75 @@ theorem ind4 (P : Graph V L → Prop)
     omega
   exact h_mono (G.eraseNode v) G
     (by simp only [nodeCount, eraseNode, herase]; omega) (ih _ hG')
+
+/-! ## Algebraic Laws for ⋈_P over Separator Gluing
+
+The separator_induction principle captures an algebraic distributivity law:
+pattern matching (⋈_P) distributes over separator-based gluing (∪_G via IsGluing).
+
+Forward direction: homomorphisms into a part lift to the union (C¹⁰ from the proposal).
+The left variant is `homomorphisms_union_sub` in Laws.lean; we add the right variant
+and lift both to `patternMatchNodes` and `IsGluing`. -/
+
+/-- Symmetric version of `homomorphisms_union_sub`: right component. -/
+theorem homomorphisms_union_sub_right (G₁ G₂ P : Graph V L) :
+    homomorphisms P G₂ ⊆ homomorphisms P (G₁.union G₂) := by
+  intro f hf
+  constructor
+  · intro v hv; simp [union, Finset.mem_union]; right; exact hf.1 v hv
+  · intro e he; simp [union, Finset.mem_union]; right; exact hf.2 e he
+
+/-- **⋈_P distributes over ∪_G (forward direction, C¹⁰).**
+
+    patternMatchNodes(G₁, Q) ∪ patternMatchNodes(G₂, Q) ⊆ patternMatchNodes(G₁ ∪_G G₂, Q)
+
+    Every pattern occurrence found in a part is found in the union. -/
+theorem patternMatchNodes_union_subset (G₁ G₂ Q : Graph V L) :
+    patternMatchNodes G₁ Q ∪ patternMatchNodes G₂ Q ⊆
+    patternMatchNodes (G₁ ∪ G₂) Q := by
+  intro v hv
+  simp only [patternMatchNodes, Set.mem_union, Set.mem_setOf_eq] at hv ⊢
+  rcases hv with ⟨f, hf, u, hu, rfl⟩ | ⟨f, hf, u, hu, rfl⟩
+  · exact ⟨f, homomorphisms_union_sub G₁ G₂ Q hf, u, hu, rfl⟩
+  · exact ⟨f, homomorphisms_union_sub_right G₁ G₂ Q hf, u, hu, rfl⟩
+
+/-- ⋈_P distributes over gluing (forward direction via IsGluing):
+
+    patternMatchNodes(G₁, Q) ∪ patternMatchNodes(G₂, Q) ⊆ patternMatchNodes(G, Q)
+
+    when G is the gluing of G₁ and G₂ along separator S. -/
+theorem patternMatchNodes_isGluing_subset (G G₁ G₂ : Graph V L) (S : Finset V)
+    (Q : Graph V L) (hglue : IsGluing G G₁ G₂ S) :
+    patternMatchNodes G₁ Q ∪ patternMatchNodes G₂ Q ⊆
+    patternMatchNodes G Q := by
+  intro v hv
+  simp only [patternMatchNodes, Set.mem_union, Set.mem_setOf_eq] at hv ⊢
+  rcases hv with ⟨f, hf, u, hu, rfl⟩ | ⟨f, hf, u, hu, rfl⟩
+  · refine ⟨f, ?_, u, hu, rfl⟩
+    exact ⟨fun w hw => hglue.nodes_cover ▸ Finset.mem_union_left _ (hf.1 w hw),
+           fun e he => hglue.edges_cover ▸ Finset.mem_union_left _ (hf.2 e he)⟩
+  · refine ⟨f, ?_, u, hu, rfl⟩
+    exact ⟨fun w hw => hglue.nodes_cover ▸ Finset.mem_union_right _ (hf.1 w hw),
+           fun e he => hglue.edges_cover ▸ Finset.mem_union_right _ (hf.2 e he)⟩
+
+/-- **Separator induction for ⋈_P (pattern matching).**
+
+    If a property R about patternMatchNodes holds for base-case graphs and
+    is preserved by gluing, then it holds for all graphs with a separator
+    decomposition. Direct application of `separator_induction`. -/
+theorem patternMatch_separator_induction (k : ℕ) (Q : Graph V L)
+    (R : Graph V L → Set V → Prop)
+    (h_base : ∀ G : Graph V L, G.nodes.card ≤ k + 1 →
+      R G (patternMatchNodes G Q))
+    (h_glue : ∀ (G G₁ G₂ : Graph V L) (S : Finset V),
+      IsGluing G G₁ G₂ S → S.card ≤ k + 1 →
+      R G₁ (patternMatchNodes G₁ Q) →
+      R G₂ (patternMatchNodes G₂ Q) →
+      R G (patternMatchNodes G Q))
+    {G : Graph V L} (hdecomp : SepDecomp G k) :
+    R G (patternMatchNodes G Q) :=
+  separator_induction k (fun G => R G (patternMatchNodes G Q))
+    h_base h_glue hdecomp
 
 end Graph
 

@@ -72,6 +72,17 @@ theorem PropMap.restrict_superset (sm : SupportedPropMap) (attrs : Finset AttrNa
   · rfl
   · exact (sm.support_spec k (fun hk => ‹k ∉ attrs› (h hk))).symm ▸ rfl
 
+/-- Restricting to a subset of a superset equals restricting to the subset directly. -/
+theorem PropMap.restrict_restrict_subset (m : PropMap) (s t : Finset AttrName) (h : s ⊆ t) :
+    (m.restrict t).restrict s = m.restrict s := by
+  funext k
+  simp only [PropMap.restrict]
+  split
+  · split
+    · rfl
+    · exact absurd (h ‹_›) ‹_›
+  · rfl
+
 /-- Merge two property maps. Left-wins on conflicts. -/
 def PropMap.merge (m₁ m₂ : PropMap) : PropMap :=
   fun k => match m₁ k with
@@ -166,11 +177,99 @@ def not_ (p : DecPred α) : DecPred α where
     have := p.dec x
     exact instDecidableNot
 
-/-- The set of attributes that a predicate references.
-    This is important for commutativity with projection (C² condition). -/
-def attrs (p : DecPred PropMap) : Finset AttrName := sorry -- opaque, user-specified
-
 end DecPred
+
+/-! ## Property Map Predicates
+
+A decidable predicate over `PropMap` that explicitly tracks which attributes it
+references. This enables the C² commutativity condition: `σ_p(π_A(G)) = π_A(σ_p(G))`
+whenever `attrs p ⊆ A`. -/
+
+structure PropPred where
+  pred : PropMap → Prop
+  dec  : DecidablePred pred
+  attrs : Finset AttrName
+  attrs_spec : ∀ m, pred m ↔ pred (m.restrict attrs)
+
+instance (pp : PropPred) (m : PropMap) : Decidable (pp.pred m) := pp.dec m
+
+/-- Coerce a `PropPred` to a `DecPred PropMap`. -/
+def PropPred.toDecPred (pp : PropPred) : DecPred PropMap where
+  pred := pp.pred
+  dec  := pp.dec
+
+namespace PropPred
+
+def true_ : PropPred where
+  pred := fun _ => True
+  dec  := fun _ => isTrue trivial
+  attrs := ∅
+  attrs_spec := fun _ => ⟨fun h => h, fun h => h⟩
+
+def false_ : PropPred where
+  pred := fun _ => False
+  dec  := fun _ => isFalse (fun h => h)
+  attrs := ∅
+  attrs_spec := fun _ => ⟨fun h => h, fun h => h⟩
+
+private theorem restrict_union_left (p q : PropPred) (m : PropMap) :
+    (m.restrict (p.attrs ∪ q.attrs)).restrict p.attrs = m.restrict p.attrs :=
+  PropMap.restrict_restrict_subset m p.attrs (p.attrs ∪ q.attrs) Finset.subset_union_left
+
+private theorem restrict_union_right (p q : PropPred) (m : PropMap) :
+    (m.restrict (p.attrs ∪ q.attrs)).restrict q.attrs = m.restrict q.attrs :=
+  PropMap.restrict_restrict_subset m q.attrs (p.attrs ∪ q.attrs) Finset.subset_union_right
+
+private theorem lift_attrs_spec (p : PropPred) (s : Finset AttrName) (hs : p.attrs ⊆ s) (m : PropMap) :
+    p.pred m ↔ p.pred (m.restrict s) := by
+  rw [p.attrs_spec m, p.attrs_spec (m.restrict s), PropMap.restrict_restrict_subset m p.attrs s hs]
+
+def and_ (p q : PropPred) : PropPred where
+  pred := fun m => p.pred m ∧ q.pred m
+  dec  := fun m => by
+    have := p.dec m
+    have := q.dec m
+    exact instDecidableAnd
+  attrs := p.attrs ∪ q.attrs
+  attrs_spec := fun m =>
+    ⟨fun ⟨hp, hq⟩ => ⟨(lift_attrs_spec p _ Finset.subset_union_left m).mp hp,
+                       (lift_attrs_spec q _ Finset.subset_union_right m).mp hq⟩,
+     fun ⟨hp, hq⟩ => ⟨(lift_attrs_spec p _ Finset.subset_union_left m).mpr hp,
+                       (lift_attrs_spec q _ Finset.subset_union_right m).mpr hq⟩⟩
+
+def or_ (p q : PropPred) : PropPred where
+  pred := fun m => p.pred m ∨ q.pred m
+  dec  := fun m => by
+    have := p.dec m
+    have := q.dec m
+    exact instDecidableOr
+  attrs := p.attrs ∪ q.attrs
+  attrs_spec := fun m =>
+    ⟨fun h => h.imp (lift_attrs_spec p _ Finset.subset_union_left m).mp
+                     (lift_attrs_spec q _ Finset.subset_union_right m).mp,
+     fun h => h.imp (lift_attrs_spec p _ Finset.subset_union_left m).mpr
+                     (lift_attrs_spec q _ Finset.subset_union_right m).mpr⟩
+
+def not_ (p : PropPred) : PropPred where
+  pred := fun m => ¬ p.pred m
+  dec  := fun m => by
+    have := p.dec m
+    exact instDecidableNot
+  attrs := p.attrs
+  attrs_spec := fun m =>
+    ⟨fun hn hp => hn ((p.attrs_spec m).mpr hp),
+     fun hn hp => hn ((p.attrs_spec m).mp hp)⟩
+
+/-- A predicate checking a specific attribute against a value. -/
+def attrEq (attr : AttrName) (v : Value) : PropPred where
+  pred := fun m => m attr = some v
+  dec  := fun m => decEq (m attr) (some v)
+  attrs := {attr}
+  attrs_spec := fun m => by
+    simp only [PropMap.restrict, Finset.mem_singleton]
+    constructor <;> intro h <;> simp_all
+
+end PropPred
 
 /-! ## The Structural Hierarchy ("The Kite")
 

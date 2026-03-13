@@ -19,3 +19,5 @@ import GraphAlgebra.Relation
 import GraphAlgebra.Graph
 import GraphAlgebra.Operators
 import GraphAlgebra.Laws
+import GraphAlgebra.Induction
+import GraphAlgebra.Lawler
