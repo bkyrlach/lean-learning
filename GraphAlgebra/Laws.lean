@@ -842,6 +842,43 @@ theorem toEdgeRelation_projectProps_size (G : Graph V L)
     (G.toEdgeRelation srcAttr tgtAttr labelAttr toNodeVal toLabelVal).size := by
   simp [toEdgeRelation, Relation.size, projectProps]
 
+/-- ↓ congruence for node relations: same graph structure → same relation. -/
+theorem toNodeRelation_congr {G₁ G₂ : Graph V L}
+    (hn : G₁.nodes = G₂.nodes)
+    (hnp : ∀ v ∈ G₁.nodes, G₁.nodeProps v = G₂.nodeProps v)
+    (idAttr : AttrName) (toVal : V → Value) :
+    G₁.toNodeRelation idAttr toVal = G₂.toNodeRelation idAttr toVal := by
+  unfold toNodeRelation
+  congr 1
+  have hval : G₁.nodes.val = G₂.nodes.val := congr_arg Finset.val hn
+  have hlist : G₁.nodes.val.toList = G₂.nodes.val.toList := congr_arg Multiset.toList hval
+  rw [hlist]
+  apply List.map_congr_left
+  intro v hv
+  have hv_mem : v ∈ G₁.nodes := by
+    rw [hn, Finset.mem_def]; exact Multiset.mem_toList.mp hv
+  congr 1
+  exact congr_arg (·.set idAttr (toVal v)) (hnp v hv_mem)
+
+/-- ↓ congruence for edge relations: same graph structure → same relation. -/
+theorem toEdgeRelation_congr {G₁ G₂ : Graph V L}
+    (he : G₁.edges = G₂.edges)
+    (hep : ∀ e ∈ G₁.edges, G₁.edgeProps e = G₂.edgeProps e)
+    (srcAttr tgtAttr labelAttr : AttrName)
+    (toNodeVal : V → Value) (toLabelVal : L → Value) :
+    G₁.toEdgeRelation srcAttr tgtAttr labelAttr toNodeVal toLabelVal =
+    G₂.toEdgeRelation srcAttr tgtAttr labelAttr toNodeVal toLabelVal := by
+  unfold toEdgeRelation
+  congr 1
+  have hval : G₁.edges.val = G₂.edges.val := congr_arg Finset.val he
+  have hlist : G₁.edges.val.toList = G₂.edges.val.toList := congr_arg Multiset.toList hval
+  rw [hlist]
+  apply List.map_congr_left
+  intro e he_list
+  have he_mem : e ∈ G₁.edges := by
+    rw [he, Finset.mem_def]; exact Multiset.mem_toList.mp he_list
+  simp only [hep e he_mem]
+
 end ProjectionDownLaws
 
 /-! ## Congruence Laws (≅ column)
@@ -1419,6 +1456,81 @@ theorem embeddings_union_sub_compose {G P₁ P₂ : Graph V L}
     f ∈ homomorphisms P₁ G ∧ f ∈ homomorphisms P₂ G :=
   ⟨homomorphisms_union_decompose hf.1, homomorphisms_union_decompose_right hf.1⟩
 
+/-- Two functions agree on the separator (shared nodes) of two patterns. -/
+def agreeOnSeparator (P₁ P₂ : Graph V L) (f₁ f₂ : V → V) : Prop :=
+  ∀ v ∈ patternSeparator P₁ P₂, f₁ v = f₂ v
+
+/-- Combine two functions that agree on the separator into one function
+    defined on the union. Uses f₁ on P₁.nodes and f₂ on the rest. -/
+noncomputable def combineMaps (P₁ : Graph V L) (f₁ f₂ : V → V) : V → V :=
+  fun v => if v ∈ P₁.nodes then f₁ v else f₂ v
+
+/-- Pattern decomposition with separator (composition direction):
+    If f₁ is a hom from P₁ to G, f₂ is a hom from P₂ to G,
+    and they agree on the separator, then the combined map
+    is a hom from P₁ ∪ P₂ to G. -/
+theorem homomorphisms_separator_compose {G P₁ P₂ : Graph V L}
+    {f₁ f₂ : V → V}
+    (hf₁ : f₁ ∈ homomorphisms P₁ G) (hf₂ : f₂ ∈ homomorphisms P₂ G)
+    -- Edge validity: P₂ edges with endpoints in P₁ must map consistently
+    -- (this implies agreeOnSeparator for nodes that appear as edge endpoints)
+    (hedge : ∀ e ∈ P₂.edges, e.src ∈ P₁.nodes → f₂ e.src = f₁ e.src)
+    (hedge' : ∀ e ∈ P₂.edges, e.tgt ∈ P₁.nodes → f₂ e.tgt = f₁ e.tgt) :
+    combineMaps P₁ f₁ f₂ ∈ homomorphisms (P₁.union P₂) G := by
+  constructor
+  · -- Node membership: combineMaps maps union nodes to G nodes
+    intro v hv
+    simp [union, Finset.mem_union] at hv
+    simp [combineMaps]
+    cases hv with
+    | inl h =>
+      simp [h]
+      exact hf₁.1 v h
+    | inr h =>
+      by_cases hv₁ : v ∈ P₁.nodes
+      · simp [hv₁]
+        exact hf₁.1 v hv₁
+      · simp [hv₁]
+        exact hf₂.1 v h
+  · -- Edge preservation: combineMaps preserves edges
+    intro e he
+    simp [union, Finset.mem_union] at he
+    cases he with
+    | inl h =>
+      -- e ∈ P₁.edges, so src, tgt ∈ P₁.nodes
+      have hsrc : e.src ∈ P₁.nodes := P₁.edge_src_valid e h
+      have htgt : e.tgt ∈ P₁.nodes := P₁.edge_tgt_valid e h
+      simp [combineMaps, hsrc, htgt]
+      exact hf₁.2 e h
+    | inr h =>
+      -- e ∈ P₂.edges, need to handle whether src/tgt are in P₁
+      simp [combineMaps]
+      have he₂ := hf₂.2 e h
+      -- We need: ⟨if src ∈ P₁ then f₁ src else f₂ src, label, if tgt ∈ P₁ then f₁ tgt else f₂ tgt⟩ ∈ G.edges
+      by_cases hsrc : e.src ∈ P₁.nodes <;> by_cases htgt : e.tgt ∈ P₁.nodes
+      · simp [hsrc, htgt]
+        rw [← hedge e h hsrc, ← hedge' e h htgt]
+        exact he₂
+      · simp [hsrc, htgt]
+        rw [← hedge e h hsrc]
+        exact he₂
+      · simp [hsrc, htgt]
+        rw [← hedge' e h htgt]
+        exact he₂
+      · simp [hsrc, htgt]
+        exact he₂
+
+/-- Pattern decomposition with separator (decomposition direction):
+    A homomorphism from P₁ ∪ P₂ decomposes into two homomorphisms
+    that agree on the separator. -/
+theorem homomorphisms_separator_decompose {G P₁ P₂ : Graph V L}
+    {f : V → V} (hf : f ∈ homomorphisms (P₁.union P₂) G) :
+    f ∈ homomorphisms P₁ G ∧ f ∈ homomorphisms P₂ G ∧
+    agreeOnSeparator P₁ P₂ f f := by
+  refine ⟨homomorphisms_union_decompose hf, homomorphisms_union_decompose_right hf, ?_⟩
+  intro _ _
+  rfl
+
 end PatternDecomposition
 
 /-! ## TC Dist over ∩ (TC row, Dist ∩ column = ✗)
@@ -1691,11 +1803,12 @@ Now formalized via `SupportedGraph` + `projectProps_identity_nodeProps/edgeProps
 the empty graph. The ✗ is correct but unprovable as a theorem — the
 operation simply cannot be applied. **Doc issue: precondition prevents stating.**
 
-### ⋈_P Pattern Decomposition (✓ for hom, ✗¹² for iso) — PARTIALLY RESOLVED
+### ⋈_P Pattern Decomposition (✓ for hom, ✗¹² for iso) — RESOLVED
 Formalized the decomposition/composition directions for homomorphisms:
 `homomorphisms_union_decompose`, `homomorphisms_union_decompose_right`,
-`homomorphisms_union_compose`. C¹² containment: `embeddings_union_sub_compose`.
-Full tree decomposition with separators deferred (research-level).
+`homomorphisms_union_compose`. Separator-based composition with two distinct
+functions: `agreeOnSeparator`, `combineMaps`, `homomorphisms_separator_compose`,
+`homomorphisms_separator_decompose`. C¹² containment: `embeddings_union_sub_compose`.
 
 ### ⋈_P (iso) Entire Row — RESOLVED
 Formalized via `embeddings` operator with `embeddings_mono`, `embeddings_congr`,
@@ -1707,10 +1820,10 @@ Formalized via `construct_mono_nodes/edges`, `construct_congr`,
 `construct_union_nodes/edges`, `projectProps_construct`,
 `selectNodes_construct_nodes`.
 
-### ↓ Row (6 non-N/A cells: C¹, C¹, ✓, C¹⁹, C²⁰, ✓) — PARTIALLY RESOLVED
+### ↓ Row (6 non-N/A cells: C¹, C¹, ✓, C¹⁹, C²⁰, ✓) — RESOLVED
 Formalized at size/topology level: `toNodeRelation_size`,
 `toNodeRelation_projectProps_size`, `toEdgeRelation_projectProps_size`.
-Full List-equality congruence deferred (requires Multiset.toList reasoning).
+Full congruence: `toNodeRelation_congr`, `toEdgeRelation_congr`.
 
 ### ρ_path Row (4 non-N/A cells: ✗, C¹, ✓, ✓) — RESOLVED
 Formalized via `RPQ`, `RPQMatch`, `rpqMatch_mono`, `rpqMatch_congr`,
